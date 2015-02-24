@@ -1,0 +1,31 @@
+{
+  "name": "codezero/filesystem",
+  "description": "Perform basic filesystem operations.",
+  "keywords": [
+    "filesystem",
+    "file",
+    "directory",
+    "php"
+  ],
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Ivan Vermeyen",
+      "email": "ivan@codezero.be"
+    }
+  ],
+  "require": {
+    "php": ">=5.4.0"
+  },
+  "require-dev": {
+    "phpspec/phpspec": "~2.0",
+    "henrikbjorn/phpspec-code-coverage": "~1.0",
+    "mikey179/vfsStream": "1.4.*"
+  },
+  "autoload": {
+    "psr-4": {
+      "CodeZero\\Filesystem\\": "src/"
+    }
+  },
+  "minimum-stability": "stable"
+}
