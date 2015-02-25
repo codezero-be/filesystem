@@ -1,4 +1,4 @@
-<?php namespace CodeZero\Filesystem; 
+<?php namespace CodeZero\Filesystem;
 
 class Filesystem
 {
@@ -121,12 +121,9 @@ class Filesystem
      */
     public function listDirectory($dir)
     {
-        if ( ! $this->isDirectory($dir))
-        {
-            throw new IOException("The directory [{$dir}] doesn't exists.");
-        }
-        elseif (($listing = @scandir($dir)) === false)
-        {
+        $this->throwIfDirectoryDoesNotExist($dir);
+
+        if (($listing = @scandir($dir)) === false) {
             throw new IOException("Could not get a directory listing of [{$dir}].");
         }
 
@@ -148,16 +145,9 @@ class Filesystem
      */
     public function readFile($file)
     {
-        if ( ! $this->exists($file))
-        {
-            throw new IOException("The file [{$file}] does not exist.");
-        }
-        elseif ( ! $this->isFile($file))
-        {
-            throw new IOException("The path [{$file}] exists, but is not a file.");
-        }
-        elseif (($data = @file_get_contents($file)) === false)
-        {
+        $this->throwIfFileDoesNotExist($file);
+
+        if (($data = @file_get_contents($file)) === false) {
             throw new IOException("The file [{$file}] could not be read.");
         }
 
@@ -189,16 +179,7 @@ class Filesystem
      */
     public function createDirectory($path, $chmod = 0755, $recursive = true)
     {
-        if ($this->isDirectory($path))
-        {
-            return true;
-        }
-        elseif ($this->exists($path))
-        {
-            throw new IOException("The path [{$path}] exists but is not a directory.");
-        }
-        elseif (@mkdir($path, $chmod, $recursive) === false)
-        {
+        if ( ! $this->isDirectory($path) && @mkdir($path, $chmod, $recursive) === false) {
             throw new IOException("The directory [{$path}] could not be created.");
         }
 
@@ -217,28 +198,14 @@ class Filesystem
      */
     public function createFile($path, $data, $overwrite = false)
     {
-        if ($overwrite == false && $this->exists($path))
-        {
-            throw new IOException("The file [{$path}] already exists.");
-        }
+        $this->verifyOverwrite($path, $overwrite);
+        $this->createParentIfNotExists($path);
 
-        $parent = $this->getParentDirectory($path);
-
-        if ($parent && ! $this->exists($parent))
-        {
-            $this->createDirectory($parent);
-        }
-        elseif ($parent && ! $this->isDirectory($parent))
-        {
-            throw new IOException("Cannot write to [{$path}] because [{$parent}] is not a directory.");
-        }
-
-        if (($bytes = @file_put_contents($path, $data)) === false)
-        {
+        if (($bytes = @file_put_contents($path, $data)) === false) {
             throw new IOException("The file [{$path}] could not be written.");
         }
 
-        return $bytes ?: 0;
+        return $bytes;
     }
 
     /**
@@ -252,8 +219,7 @@ class Filesystem
      */
     public function delete($path, $recursive = false)
     {
-        if ($this->isDirectory($path))
-        {
+        if ($this->isDirectory($path)) {
             return $recursive
                 ? $this->deleteDirectoryRecursive($path)
                 : $this->deleteDirectory($path);
@@ -274,12 +240,9 @@ class Filesystem
      */
     public function rename($src, $dest, $overwrite = false)
     {
-        if ($overwrite == false && $this->exists($dest))
-        {
-            throw new IOException("The file or directory [{$dest}] already exists.");
-        }
-        elseif (@rename($src, $dest) === false)
-        {
+        $this->verifyOverwrite($dest, $overwrite);
+
+        if (@rename($src, $dest) === false) {
             throw new IOException("The file or directory [{$src}] could not be renamed.");
         }
 
@@ -315,8 +278,7 @@ class Filesystem
     {
         $listing = $this->listDirectory($dir);
 
-        foreach ($listing as $child)
-        {
+        foreach ($listing as $child) {
             $this->delete($dir.'/'.$child, true);
         }
 
@@ -333,12 +295,9 @@ class Filesystem
      */
     private function deleteDirectory($dir)
     {
-        if ( ! $this->isEmpty($dir))
-        {
+        if ( ! $this->isEmpty($dir)) {
             throw new IOException("The directory [{$dir}] is not empty.");
-        }
-        elseif (rmdir($dir) === false)
-        {
+        } elseif (rmdir($dir) === false) {
             throw new IOException("The directory [{$dir}] could not be deleted.");
         }
 
@@ -355,8 +314,7 @@ class Filesystem
      */
     private function deleteFile($file)
     {
-        if (unlink($file) === false)
-        {
+        if (unlink($file) === false) {
             throw new IOException("The file [{$file}] could not be deleted.");
         }
 
@@ -375,28 +333,16 @@ class Filesystem
      */
     private function copyFile($src, $dest, $overwrite)
     {
-        if ( ! $this->isFile($src))
-        {
-            throw new IOException("The source path [{$src}] doesn't exist or is not a file.");
+        $this->throwIfFileDoesNotExist($src);
+
+        if ($this->isDirectory($dest)) {
+            $dest .= '/'.basename($src);
         }
 
-        if ($this->isDirectory($dest))
-        {
-            $dest = $dest.'/'.basename($src);
-        }
+        $this->verifyOverwrite($dest, $overwrite);
+        $this->createParentIfNotExists($dest);
 
-        if ($overwrite == false && $this->exists($dest))
-        {
-            throw new IOException("The file [{$dest}] already exists.");
-        }
-
-        if (($parent = $this->getParentDirectory($dest)) && ! $this->exists($parent))
-        {
-            $this->createDirectory($parent);
-        }
-
-        if (@copy($src, $dest) === false)
-        {
+        if (@copy($src, $dest) === false) {
             throw new IOException("The file [{$src}] could not be copied.");
         }
 
@@ -415,18 +361,89 @@ class Filesystem
      */
     private function copyDirectoryRecursive($src, $dest, $overwrite)
     {
-        if ($overwrite == false && $this->exists($dest))
-        {
-            throw new IOException("The directory [{$dest}] already exists.");
-        }
-
+        $this->verifyOverwrite($dest, $overwrite);
         $listing = $this->listDirectory($src);
 
-        foreach ($listing as $child)
-        {
+        foreach ($listing as $child) {
             $this->copy($src.'/'.$child, $dest.'/'.$child, $overwrite);
         }
 
         return true;
+    }
+
+    /**
+     * Create a parent directory if needed
+     *
+     * @param string $path
+     *
+     * @return void
+     * @throws IOException
+     */
+    private function createParentIfNotExists($path)
+    {
+        if ($parent = $this->getParentDirectory($path)) {
+            $this->createDirectory($parent);
+        }
+    }
+
+    /**
+     * Throw an exception if a path exists
+     *
+     * @param string $path
+     *
+     * @return void
+     * @throws IOException
+     */
+    private function throwIfPathExists($path)
+    {
+        if ($this->exists($path)) {
+            throw new IOException("The path [{$path}] already exists.");
+        }
+    }
+
+    /**
+     * Throw an exception if a file does not exist
+     *
+     * @param string $file
+     *
+     * @return void
+     * @throws IOException
+     */
+    private function throwIfFileDoesNotExist($file)
+    {
+        if ( ! $this->isFile($file)) {
+            throw new IOException("The path [{$file}] is not a file.");
+        }
+    }
+
+    /**
+     * Throw an exception if a directory does not exist
+     *
+     * @param string $dir
+     *
+     * @return void
+     * @throws IOException
+     */
+    private function throwIfDirectoryDoesNotExist($dir)
+    {
+        if ( ! $this->isDirectory($dir)) {
+            throw new IOException("The path [{$dir}] is not a directory.");
+        }
+    }
+
+    /**
+     * Throw an exception if overwrite is disabled and the target path exists
+     *
+     * @param string $path
+     * @param bool $overwrite
+     *
+     * @return void
+     * @throws IOException
+     */
+    private function verifyOverwrite($path, $overwrite)
+    {
+        if ($overwrite == false) {
+            $this->throwIfPathExists($path);
+        }
     }
 }
