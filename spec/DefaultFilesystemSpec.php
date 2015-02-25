@@ -4,7 +4,7 @@ use org\bovigo\vfs\vfsStream;
 use PhpSpec\ObjectBehavior;
 use Prophecy\Argument;
 
-class FilesystemSpec extends ObjectBehavior
+class DefaultFilesystemSpec extends ObjectBehavior
 {
     private $baseDirectory;
     private $testFile;
