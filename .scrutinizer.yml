@@ -1,8 +1,19 @@
+filter:
+    excluded_paths:
+        - 'tests/*'
+        - 'spec/*'
+
 checks:
   php:
     code_rating: true
     duplication: true
-    
+
+coding_style:
+    php:
+        spaces:
+            around_operators:
+                negation: true
+
 build:
   tests:
     override:
